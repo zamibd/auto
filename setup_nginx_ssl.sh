@@ -13,7 +13,7 @@ ok() { echo -e "✅ $*"; }
 info() { echo -e "ℹ️  $*"; }
 err() { echo -e "❌ $*" >&2; }
 
-trap 'err \"An error occurred. Check the logs above.\"; exit 1' ERR
+trap 'err "An error occurred. Check the logs above."; exit 1' ERR
 
 hr
 echo "Nginx + Let's Encrypt (Ubuntu 24.04) automated setup starting..."
@@ -60,10 +60,12 @@ SITE_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
 
 info "Creating Nginx site config: ${SITE_AVAIL}"
 
+# Root-only server + www->root redirect on port 80
 cat > "${SITE_AVAIL}" <<EOF
+# Port 80: actual site for root domain (Certbot will transform this for HTTPS)
 server {
     listen 80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${DOMAIN};
 
     root /var/www/html;
     index index.html index.htm;
@@ -71,6 +73,13 @@ server {
     location / {
         try_files \$uri \$uri/ =404;
     }
+}
+
+# Port 80: redirect www to canonical https://root (no certificate for www)
+server {
+    listen 80;
+    server_name www.${DOMAIN};
+    return 301 https://${DOMAIN}\$request_uri;
 }
 EOF
 
@@ -84,14 +93,14 @@ info "Reloading Nginx..."
 systemctl reload nginx
 ok "Nginx site ${DOMAIN} enabled."
 
-# 5) Issue Let's Encrypt certificate (NON-INTERACTIVE)
+# 5) Issue Let's Encrypt certificate (NON-INTERACTIVE) for ROOT ONLY
 echo
-info "Requesting Let's Encrypt SSL (non-interactive) for ${DOMAIN} and www.${DOMAIN}..."
+info "Requesting Let's Encrypt SSL (non-interactive) for ${DOMAIN} (root only)..."
 certbot --nginx \
-  -d "${DOMAIN}" -d "www.${DOMAIN}" \
+  -d "${DOMAIN}" \
   --agree-tos -m "${EMAIL}" --redirect --no-eff-email \
   --non-interactive
-ok "SSL deployment completed."
+ok "SSL deployment completed for ${DOMAIN}."
 
 # 6) Check certbot.timer and dry-run renewal
 info "Checking certbot.timer status..."
@@ -107,9 +116,8 @@ CERTBOT_VER="$(certbot --version 2>/dev/null || true)"
 OPENSSL_VER="$(openssl version 2>/dev/null || true)"
 
 hr
-echo "🎉 All set! HTTPS should now be live:"
+echo "🎉 All set! HTTPS should now be live (root only):"
 echo "   https://${DOMAIN}"
-echo "   https://www.${DOMAIN}"
 hr
 echo "Key paths:"
 echo "  - Site config: ${SITE_AVAIL}"
