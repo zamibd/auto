@@ -13,7 +13,7 @@ ok() { echo -e "✅ $*"; }
 info() { echo -e "ℹ️  $*"; }
 err() { echo -e "❌ $*" >&2; }
 
-trap 'err "An error occurred. Check the logs above."; exit 1' ERR
+trap 'err \"An error occurred. Check the logs above.\"; exit 1' ERR
 
 hr
 echo "Nginx + Let's Encrypt (Ubuntu 24.04) automated setup starting..."
@@ -42,13 +42,17 @@ info "Installing Certbot and Nginx plugin..."
 apt install -y certbot python3-certbot-nginx
 ok "Certbot installed."
 
-# 4) Ask for domain & write nginx server block
+# 4) Ask for domain & email; write nginx server block
 echo
 read -rp "Enter your domain (e.g., example.com): " DOMAIN
 DOMAIN="${DOMAIN,,}"  # lowercase
-
 if [[ -z "${DOMAIN}" ]]; then
   err "Domain cannot be empty."; exit 1
+fi
+
+read -rp "Enter your email for Let's Encrypt (e.g., admin@example.com): " EMAIL
+if [[ -z "${EMAIL}" ]]; then
+  err "Email cannot be empty."; exit 1
 fi
 
 SITE_AVAIL="/etc/nginx/sites-available/${DOMAIN}"
@@ -80,13 +84,14 @@ info "Reloading Nginx..."
 systemctl reload nginx
 ok "Nginx site ${DOMAIN} enabled."
 
-# 5) Issue Let's Encrypt certificate (interactive)
+# 5) Issue Let's Encrypt certificate (NON-INTERACTIVE)
 echo
-info "Requesting Let's Encrypt SSL for ${DOMAIN} and www.${DOMAIN}..."
-echo "Note: Certbot may ask for email/ToS/redirect selections interactively."
-certbot --nginx -d "${DOMAIN}" -d "www.${DOMAIN}"
-
-ok "SSL deployment completed (look for 'Congratulations' above)."
+info "Requesting Let's Encrypt SSL (non-interactive) for ${DOMAIN} and www.${DOMAIN}..."
+certbot --nginx \
+  -d "${DOMAIN}" -d "www.${DOMAIN}" \
+  --agree-tos -m "${EMAIL}" --redirect --no-eff-email \
+  --non-interactive
+ok "SSL deployment completed."
 
 # 6) Check certbot.timer and dry-run renewal
 info "Checking certbot.timer status..."
