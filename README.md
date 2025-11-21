@@ -1,2 +1,2 @@
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/amarpay/auto/main/auto.sh)
+bash <(curl -s https://raw.githubusercontent.com/zamibd/auto/main/auto.sh)
